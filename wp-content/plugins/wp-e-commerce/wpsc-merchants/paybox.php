@@ -22,7 +22,7 @@ function gateway_paybox($separator, $sessionid)
 	$strCurrency = WPSC_Countries::get_currency_code( get_option( 'currency_type' ) );
 	if($strCurrency == 'RUR')
 		$strCurrency = 'RUB';
-	
+
 	$arrEmailData = $wpdb->get_results("SELECT `id`,`type` FROM `".WPSC_TABLE_CHECKOUT_FORMS."` WHERE `name` IN ('email','Email') AND `active` = '1'",ARRAY_A);
 	foreach((array)$arrEmailData as $email)
     	$strEmail = $_POST['collected_data'][$email['id']];
@@ -36,7 +36,7 @@ function gateway_paybox($separator, $sessionid)
 
   	if(($_POST['collected_data'][get_option('phone_form_field')] != null) && ($strPhone == null))
     	$strPhone = $_POST['collected_data'][get_option('phone_form_field')];
-	
+
 	$strDescription = 'Продукт(ы): ';
 	foreach($arrCartItems as $arrItem){
 		$strDescription .= $arrItem['name'];
@@ -66,7 +66,7 @@ function gateway_paybox($separator, $sessionid)
 		'pg_request_method'		=> 'GET',
 		'pg_salt'				=> rand(21,43433), // Параметры безопасности сообщения. Необходима генерация pg_salt и подписи сообщения.
 	);
-	
+
 	$strSuccessUrl = get_option( 'success_url' );
 	if(isset($strSuccessUrl))
 		$arrFields['pg_success_url'] = $strSuccessUrl;
@@ -74,11 +74,11 @@ function gateway_paybox($separator, $sessionid)
 	$strFailureUrl = get_option( 'failure_url' );
 	if(isset($strFailureUrl))
 		$arrFields['pg_failure_url'] = $strFailureUrl;
-		
+
 	$strPaymentSystemName = get_option( 'payment_system_name' );
 	if(!empty($strPaymentSystemName))
 		$arrFields['pg_payment_system'] = $strPaymentSystemName;
-	
+
 	$arrFields['pg_sig'] = PG_Signature::make('payment.php', $arrFields, get_option( 'secret_key' ));
 
 	if(WPSC_GATEWAY_DEBUG == true ) {
@@ -88,7 +88,7 @@ function gateway_paybox($separator, $sessionid)
 
 	// Create Form to post to Paybox
 	$output = "
-		<form id=\"paybox_form\" name=\"paybox_form\" method=\"post\" action=\"https://paybox.kz/payment.php\">\n";
+		<form id=\"paybox_form\" name=\"paybox_form\" method=\"post\" action=\"https://api.paybox.money/payment.php\">\n";
 
 	foreach($arrFields as $strName=>$strValue) {
 			$output .= "			<input type=\"hidden\" name=\"$strName\" value=\"$strValue\" />\n";
@@ -105,24 +105,24 @@ function gateway_paybox($separator, $sessionid)
 
 function nzshpcrt_paybox_callback()
 {
-		
+
 	if(isset($_GET['paybox_callback']))
 	{
-			
+
 		global $wpdb;
 		// needs to execute on page start
 		// look at page 36
-		
+
 		if(!empty($_POST))
 			$arrRequest = $_POST;
 		else
 			$arrRequest = $_GET;
-	
+
 		$thisScriptName = PG_Signature::getOurScriptName();
 		if (empty($arrRequest['pg_sig']) || !PG_Signature::check($arrRequest['pg_sig'], $thisScriptName, $arrRequest, get_option( 'secret_key' )))
 			die("Wrong signature");
-			
-		
+
+
 		$arrAllStatuses = array(
 			'1' => 'pending',
 			'2'	=> 'completed',
@@ -135,22 +135,22 @@ function nzshpcrt_paybox_callback()
 			'1' => 'pending',
 			'4' => 'processed',
 		);
-		
+
 		$aGoodResultStatuses = array(
 			'1' => 'pending',
 			'2'	=> 'completed',
 			'3' => 'ok',
-			'4' => 'processed',	
+			'4' => 'processed',
 		);
-		
+
 		$purchase_log_sql = $wpdb->prepare( "SELECT * FROM `".WPSC_TABLE_PURCHASE_LOGS."` WHERE `id`= %s LIMIT 1", $arrRequest['pg_order_id'] );
 		$purchase_log = $wpdb->get_results($purchase_log_sql,ARRAY_A);
 		$nRealOrderStatus = $purchase_log[0]['processed'];
 		$nTotalPrice = $purchase_log[0]['totalprice'];
-		
+
 		switch($arrRequest['type']){
 			case 'check':
-				$bCheckResult = 1;			
+				$bCheckResult = 1;
 				if(empty($purchase_log) || !array_key_exists($nRealOrderStatus, $aGoodCheckStatuses)){
 					$bCheckResult = 0;
 					$error_desc = 'Order status '.$arrAllStatuses[$nRealOrderStatus].' or deleted order';
@@ -160,7 +160,7 @@ function nzshpcrt_paybox_callback()
 					$error_desc = 'Wrong amount';
 				}
 
-				$arrResponse['pg_salt']              = $arrRequest['pg_salt']; 
+				$arrResponse['pg_salt']              = $arrRequest['pg_salt'];
 				$arrResponse['pg_status']            = $bCheckResult ? 'ok' : 'error';
 				$arrResponse['pg_error_description'] = $bCheckResult ?  ""  : $error_desc;
 				$arrResponse['pg_sig']				 = PG_Signature::make($thisScriptName, $arrResponse, get_option( 'secret_key' ));
@@ -179,7 +179,7 @@ function nzshpcrt_paybox_callback()
 					else
 						$strResponseStatus = 'error';
 				}
-				elseif((empty($purchase_log) || !array_key_exists($nRealOrderStatus, $aGoodResultStatuses)) && 
+				elseif((empty($purchase_log) || !array_key_exists($nRealOrderStatus, $aGoodResultStatuses)) &&
 						!($arrRequest['pg_result'] == 0 && $nRealOrderStatus == array_search('failed', $arrAllStatuses))){
 					$strResponseDescription = 'Order status '.$arrAllStatuses[$nRealOrderStatus].' or deleted order';
 					if($arrRequest['pg_can_reject'] == 1)
@@ -203,11 +203,11 @@ function nzshpcrt_paybox_callback()
 							'transactid' => $arrRequest['pg_transaction_id'],
 							'date'       => time(),
 						);
-						wpsc_update_purchase_log_details( $arrRequest['session_id'], $data, 'sessionid' );						
+						wpsc_update_purchase_log_details( $arrRequest['session_id'], $data, 'sessionid' );
 					}
 				}
 				transaction_results($arrRequest['session_id'], false, $arrRequest['pg_transaction_id']);
-				
+
 				$objResponse = new SimpleXMLElement('<?xml version="1.0" encoding="utf-8"?><response/>');
 				$objResponse->addChild('pg_salt', $arrRequest['pg_salt']);
 				$objResponse->addChild('pg_status', $strResponseStatus);
@@ -218,7 +218,7 @@ function nzshpcrt_paybox_callback()
 				die('Wrong type request');
 				break;
 		}
-		
+
 		header("Content-type: text/xml");
 		echo $objResponse->asXML();
 		die();
@@ -257,12 +257,12 @@ function submit_paybox()
     {
     	update_option('lifetime', $_POST['lifetime']);
     }
-	
+
 	 if(isset($_POST['success_url']))
     {
     	update_option('success_url', $_POST['success_url']);
     }
-	
+
 	 if(isset($_POST['failure_url']))
     {
     	update_option('failure_url', $_POST['failure_url']);
@@ -298,7 +298,7 @@ function form_paybox()
 			<td>
 				<input type='text' size='40' value='" . get_option( 'merchant_id' ) . "' name='merchant_id' />
 				<p class='description'>
-					" . __( 'Your merchant number. You can find it in the PayBox <a href="https://paybox.kz/admin/merchants.php">admin</a>.', 'wpsc' ) . "
+					" . __( 'Your merchant number. You can find it in the PayBox <a href="https://my.paybox.money">admin</a>.', 'wpsc' ) . "
 				</p>
 			</td>
 		</tr>
